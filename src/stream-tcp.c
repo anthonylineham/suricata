@@ -2660,8 +2660,17 @@ static int StreamTcpHandleFin(ThreadVars *tv, StreamTcpThread *stt,
             return -1;
         }
 
-        StreamTcpPacketSetState(p, ssn, TCP_CLOSE_WAIT);
-        SCLogDebug("ssn %p: state changed to TCP_CLOSE_WAIT", ssn);
+        if (ssn->flags & STREAMTCP_FLAG_ASYNC) {
+            /* If the session is async then we won't see the FIN in the
+             * other direction so jump past CLOSE_WAIT.
+             */
+            StreamTcpPacketSetState(p, ssn, TCP_LAST_ACK);
+            SCLogDebug("ssn %p: state changed to TCP_LAST_ACK", ssn);
+        }
+        else {
+            StreamTcpPacketSetState(p, ssn, TCP_CLOSE_WAIT);
+            SCLogDebug("ssn %p: state changed to TCP_CLOSE_WAIT", ssn);
+        }
 
         if (SEQ_EQ(TCP_GET_SEQ(p), ssn->client.next_seq))
             ssn->client.next_seq = TCP_GET_SEQ(p) + p->payload_len;
@@ -2707,8 +2716,17 @@ static int StreamTcpHandleFin(ThreadVars *tv, StreamTcpThread *stt,
             return -1;
         }
 
-        StreamTcpPacketSetState(p, ssn, TCP_FIN_WAIT1);
-        SCLogDebug("ssn %p: state changed to TCP_FIN_WAIT1", ssn);
+        if (ssn->flags & STREAMTCP_FLAG_ASYNC) {
+            /* If the session is async then we won't see the ACK or FIN in the
+             * other direction so jump past the associated states.
+             */
+            StreamTcpPacketSetState(p, ssn, TCP_TIME_WAIT);
+            SCLogDebug("ssn %p: state changed to TCP_TIME_WAIT", ssn);
+        }
+        else {
+            StreamTcpPacketSetState(p, ssn, TCP_FIN_WAIT1);
+            SCLogDebug("ssn %p: state changed to TCP_FIN_WAIT1", ssn);
+        }
 
         if (SEQ_EQ(TCP_GET_SEQ(p), ssn->server.next_seq))
             ssn->server.next_seq = TCP_GET_SEQ(p) + p->payload_len;
